@@ -1,5 +1,5 @@
 import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
-import { DatabaseService } from '../database/database.service';
+import { DatabaseService } from '../../database/database.service';
 
 /**
  * SupabaseGuard protects routes by validating the Supabase JWT.
@@ -27,10 +27,10 @@ export class SupabaseGuard implements CanActivate {
       throw new UnauthorizedException('Invalid or expired authentication token');
     }
 
-    // Fetch the attached custom profile data (role, is_active) from the 'profiles' table
+    // Fetch the attached custom profile data (role, account_status) from the 'profiles' table
     const { data: profile, error: profileError } = await this.databaseService.client
       .from('profiles')
-      .select('role, is_active')
+      .select('role, account_status')
       .eq('id', user.id)
       .single();
 
@@ -38,8 +38,7 @@ export class SupabaseGuard implements CanActivate {
       throw new UnauthorizedException('Profile not found for this user.');
     }
 
-    // We can enforce is_active checks directly on protected routes too
-    if (!profile.is_active) {
+    if (profile.account_status !== 'active') {
       throw new UnauthorizedException('Account is inactive.');
     }
 
@@ -48,7 +47,7 @@ export class SupabaseGuard implements CanActivate {
       id: user.id,
       email: user.email,
       role: profile.role,
-      is_active: profile.is_active,
+      account_status: profile.account_status,
     };
 
     return true; // The user is allowed to access the route
