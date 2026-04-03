@@ -1,312 +1,222 @@
-# API Endpoints
+# API Reference
 
-All routes are prefixed with `/api`. Protected routes require `Authorization: Bearer <token>`.
+Base URL: `http://localhost:3000`
+
+Protected routes require `Authorization: Bearer <access_token>` in the request header.
 
 ---
 
 ## Auth
 
-### `POST /api/auth/login`
+### POST /auth/login
 Public. Authenticates a user and returns a session token.
 
-**Body**
+**Request body** (`application/json`)
 ```json
 {
   "email": "user@example.com",
   "password": "secret123"
 }
 ```
+| Field | Type | Rules |
+|---|---|---|
+| `email` | string | Required, valid email format |
+| `password` | string | Required, min 6 characters |
 
-**Response**
+**Response 201**
 ```json
 {
-  "access_token": "...",
-  "role": "student",
-  "department": "CS",
-  "first_name": "Juan",
-  "last_name": "dela Cruz"
+  "access_token": "<supabase_jwt>",
+  "role": "student"
 }
 ```
 
+**Errors**
+| Status | Reason |
+|---|---|
+| 401 | Invalid credentials, unconfirmed email, or inactive account |
+| 401 | Profile not found |
+
 ---
 
-### `POST /api/auth/logout`
-Protected. Invalidates the current session.
+### POST /auth/logout
+Protected. Invalidates the current Supabase session.
 
-**Headers** `Authorization: Bearer <token>`
-
-**Response**
+**Response 201**
 ```json
-{ "message": "Logout successful" }
+{
+  "message": "Logout successful"
+}
 ```
 
+**Errors**
+| Status | Reason |
+|---|---|
+| 401 | Missing/invalid token, inactive account |
+
 ---
 
-### `GET /api/auth/me`
-Protected. Returns the authenticated user's profile.
+### GET /auth/profile
+Protected. Returns the authenticated user's profile as attached by `SupabaseGuard`.
 
-**Headers** `Authorization: Bearer <token>`
-
-**Response**
+**Response 200**
 ```json
 {
   "id": "uuid",
   "email": "user@example.com",
   "role": "student",
-  "department": "CS",
-  "first_name": "Juan",
-  "last_name": "dela Cruz",
-  "is_active": true
+  "account_status": "active"
 }
 ```
 
----
-
-## Documents
-
-### `POST /api/documents/upload`
-Protected — `student` only. Multipart/form-data. Auto-sets status to `pending`.
-
-**Headers** `Authorization: Bearer <token>`
-
-**Body** `multipart/form-data`
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `file` | File (PDF) | Yes | Max 10 MB |
-| `title` | string | Yes | |
-| `authors` | JSON string | Yes | e.g. `'["Name A","Name B"]'` |
-| `department` | string | Yes | `IS` \| `IT` \| `CS` |
-| `type` | string | Yes | `thesis` \| `capstone` |
-| `abstract` | string | No | |
-| `year` | number | No | 1900 – current year + 1 |
-| `track_specialization` | string | No | |
-| `adviser` | string | No | |
-| `keywords` | JSON string | No | e.g. `'["keyword1","keyword2"]'` |
-
----
-
-### `GET /api/documents`
-Public. Paginated list of approved documents with optional filters.
-
-**Query Parameters**
-| Param | Type | Notes |
-|---|---|---|
-| `department` | string | `IS` \| `IT` \| `CS` |
-| `type` | string | `thesis` \| `capstone` |
-| `year` | number | |
-| `track` | string | Partial match |
-| `keyword` | string | Matches against keywords array |
-| `page` | number | Default: `1` |
-| `limit` | number | Default: `10` |
-
----
-
-### `GET /api/documents/search`
-Public. Full-text search across title, authors, abstract, and keywords. Results are relevance-ranked.
-
-**Query Parameters**
-| Param | Type | Notes |
-|---|---|---|
-| `q` | string | Search query |
-
----
-
-### `GET /api/documents/check-duplicate`
-Public. Returns existing documents with a title similarity ≥ 80%. Call before uploading.
-
-**Query Parameters**
-| Param | Type | Notes |
-|---|---|---|
-| `title` | string | Title to check |
-
----
-
-### `PUT /api/documents/:id`
-Protected — `student` only. Re-uploads a revised PDF and/or updates metadata. Only allowed when document status is `revision`. Resets status to `pending`.
-
-**Headers** `Authorization: Bearer <token>`
-
-**Body** `multipart/form-data`
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `file` | File (PDF) | No | Max 10 MB |
-| `title` | string | No | |
-| `authors` | JSON string | No | |
-| `abstract` | string | No | |
-| `year` | number | No | |
-| `track_specialization` | string | No | |
-| `adviser` | string | No | |
-| `keywords` | JSON string | No | |
-
----
-
-### `GET /api/documents/:id/download-abstract`
-Public. Returns the document abstract as a plain-text file download.
-
----
-
-## Student
-
-### `POST /api/student/documents`
-Protected — `student` only. Legacy upload endpoint. Same payload as `POST /api/documents/upload`.
-
-**Headers** `Authorization: Bearer <token>`
-
-**Body** `multipart/form-data` — same fields as `POST /api/documents/upload`.
-
----
-
-## Admin
-
-### `POST /api/admin/students`
-Protected — `admin` or `super_admin`. Creates a student account and sends an invite email.
-
-**Headers** `Authorization: Bearer <token>`
-
-**Body**
-```json
-{
-  "email": "student@example.com",
-  "first_name": "Juan",
-  "last_name": "dela Cruz",
-  "department": "CS"
-}
-```
-
----
-
-### `GET /api/admin/submissions`
-Protected — `admin` or `super_admin`. Lists document submissions. Admins see only their department; super_admin sees all. Sorted newest first.
-
-**Headers** `Authorization: Bearer <token>`
-
-**Query Parameters**
-| Param | Type | Notes |
-|---|---|---|
-| `status` | string | e.g. `pending`, `under_review`, `revision` |
-
----
-
-### `POST /api/admin/submissions/:id/review`
-Protected — `admin` or `super_admin`. Approves, rejects, or requests revision on a submission. On `reject` or `revise`, creates a review record and triggers a student notification.
-
-**Headers** `Authorization: Bearer <token>`
-
-**Body**
-```json
-{
-  "decision": "approve",
-  "feedback": "Optional feedback text"
-}
-```
-
-| Field | Values |
+**Errors**
+| Status | Reason |
 |---|---|
-| `decision` | `approve` \| `reject` \| `revise` |
-| `feedback` | Optional string |
-
----
-
-### `GET /api/admin/fulltext-requests`
-Protected — `admin` or `super_admin`. Lists full-text requests. Admins see only their department; super_admin sees all.
-
-**Headers** `Authorization: Bearer <token>`
-
-**Query Parameters**
-| Param | Type | Notes |
-|---|---|---|
-| `status` | string | e.g. `pending`, `fulfilled`, `denied` |
-
----
-
-### `PUT /api/admin/fulltext-requests/:id`
-Protected — `admin` or `super_admin`. Marks a full-text request as fulfilled or denied.
-
-**Headers** `Authorization: Bearer <token>`
-
-**Body**
-```json
-{
-  "status": "fulfilled"
-}
-```
-
-| Field | Values |
-|---|---|
-| `status` | `fulfilled` \| `denied` |
+| 401 | Missing/invalid token, inactive account |
 
 ---
 
 ## Superadmin
 
-### `POST /api/superadmin/admins`
-Protected — `super_admin` only. Creates an admin account and sends an invite email.
+### POST /superadmin/admins
+Protected — requires role `superadmin`. Creates an admin account and sends an invite email. The account is `inactive` until the invitee sets their password.
 
-**Headers** `Authorization: Bearer <token>`
-
-**Body**
+**Request body** (`application/json`)
 ```json
 {
-  "email": "admin@example.com",
-  "first_name": "Maria",
-  "last_name": "Santos",
-  "department": "IT"
+  "email": "newadmin@example.com"
 }
 ```
-
----
-
-## Full-Text Requests
-
-### `POST /api/fulltext-requests`
-Public (Guest). Submits a request for full-text access to an approved document.
-
-**Body**
-```json
-{
-  "document_id": "uuid",
-  "requester_name": "John Doe",
-  "requester_email": "john@example.com",
-  "purpose": "Academic research",
-  "department": "CS"
-}
-```
-
-| Field | Values |
-|---|---|
-| `department` | `IS` \| `IT` \| `CS` \| `Other` |
-
----
-
-## Notifications
-
-### `GET /api/notifications`
-Protected. Returns all notifications for the authenticated user, newest first.
-
-**Headers** `Authorization: Bearer <token>`
-
----
-
-### `PATCH /api/notifications/read-all`
-Protected. Marks all unread notifications as read.
-
-**Headers** `Authorization: Bearer <token>`
-
----
-
-### `PATCH /api/notifications/:id/read`
-Protected. Marks a single notification as read.
-
-**Headers** `Authorization: Bearer <token>`
-
----
-
-## Repository *(Legacy)*
-
-### `GET /api/repository/documents`
-Public. Returns approved documents whose title contains the search query.
-
-**Query Parameters**
-| Param | Type | Notes |
+| Field | Type | Rules |
 |---|---|---|
-| `name` | string | Title search string |
+| `email` | string | Required, valid email format |
+
+**Response 201**
+```json
+{
+  "message": "Admin account created. An invitation email has been sent.",
+  "admin": {
+    "id": "uuid",
+    "email": "newadmin@example.com",
+    "role": "admin",
+    "account_status": "inactive"
+  }
+}
+```
+
+**Errors**
+| Status | Reason |
+|---|---|
+| 401 | Missing/invalid token, inactive account |
+| 403 | Authenticated user is not a `superadmin` |
+| 409 | An account with this email already exists |
+| 500 | Failed to send invitation or create profile |
+
+---
+
+## Admin
+
+### POST /admin/students
+Protected — requires role `admin`. Creates a student account and sends an invite email. The account is `inactive` until the invitee sets their password.
+
+**Request body** (`application/json`)
+```json
+{
+  "email": "newstudent@example.com"
+}
+```
+| Field | Type | Rules |
+|---|---|---|
+| `email` | string | Required, valid email format |
+
+**Response 201**
+```json
+{
+  "message": "Student account created. An invitation email has been sent.",
+  "student": {
+    "id": "uuid",
+    "email": "newstudent@example.com",
+    "role": "student",
+    "account_status": "inactive"
+  }
+}
+```
+
+**Errors**
+| Status | Reason |
+|---|---|
+| 401 | Missing/invalid token, inactive account |
+| 403 | Authenticated user is not an `admin` |
+| 409 | A student with this email already exists |
+| 500 | Failed to send invitation or create profile |
+
+---
+
+## Student
+
+### POST /student/materials
+Protected — requires role `student`. Uploads a material file and creates a record in the `materials` table with `status = 'pending'`. The `author` field is automatically set to the student's name from their profile.
+
+**Request body** (`multipart/form-data`)
+| Field | Type | Rules |
+|---|---|---|
+| `file` | file | Required, max 10 MB |
+| `publish_date` | string | Optional, ISO 8601 date (e.g. `2024-01-15`) |
+| `version` | string | Optional |
+
+**Response 201** — full `materials` row
+```json
+{
+  "id": "uuid",
+  "author": "Jane Doe",
+  "publish_date": "2024-01-15",
+  "version": "1.0",
+  "file_path": "<userId>/<timestamp>_filename.pdf",
+  "file_name": "filename.pdf",
+  "submitted_by": "uuid",
+  "status": "pending",
+  "created_at": "2024-01-15T10:00:00Z"
+}
+```
+
+**Errors**
+| Status | Reason |
+|---|---|
+| 401 | Missing/invalid token, inactive account |
+| 403 | Authenticated user is not a `student` |
+| 400 | File exceeds 10 MB |
+| 500 | Failed to fetch student profile, upload file, or save record |
+
+---
+
+## Repository
+
+### GET /repository/materials?name=
+Public. Returns all **approved** materials whose `file_name` contains the search query (case-insensitive, partial match).
+
+**Query parameters**
+| Param | Type | Rules |
+|---|---|---|
+| `name` | string | Required, non-empty |
+
+**Response 200**
+```json
+[
+  {
+    "id": "uuid",
+    "file_name": "lecture-notes.pdf",
+    "author": "Jane Doe",
+    "publish_date": "2024-01-15",
+    "version": "1.0",
+    "file_path": "<userId>/<timestamp>_lecture-notes.pdf",
+    "submitted_by": "uuid",
+    "created_at": "2024-01-15T10:00:00Z"
+  }
+]
+```
+
+**Errors**
+| Status | Reason |
+|---|---|
+| 400 | `name` query param is missing or blank |
+| 400 | Supabase query error |
