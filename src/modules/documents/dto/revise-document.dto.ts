@@ -1,8 +1,6 @@
 import {
   IsString,
-  IsNotEmpty,
   IsOptional,
-  IsIn,
   IsInt,
   Min,
   Max,
@@ -11,18 +9,15 @@ import {
 import { Transform } from 'class-transformer';
 
 /**
- * UploadDocumentDto — validates the metadata fields sent alongside
- * a PDF file upload (multipart/form-data).
- *
- * JSON array fields (authors, keywords) arrive as JSON strings from
- * multipart payloads and are automatically parsed by the @Transform decorator.
+ * ReviseDocumentDto — all fields are optional.
+ * Only fields provided will be updated; status is always reset to 'pending'.
  */
-export class UploadDocumentDto {
+export class ReviseDocumentDto {
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  title: string;
+  title?: string;
 
-  /** Accepts a JSON-serialised string array: '["Name A","Name B"]' */
+  @IsOptional()
   @Transform(({ value }) => {
     if (typeof value === 'string') {
       try {
@@ -34,27 +29,18 @@ export class UploadDocumentDto {
     return value;
   })
   @IsArray()
-  authors: string[];
+  authors?: string[];
 
   @IsOptional()
   @IsString()
   abstract?: string;
 
-  /** Accepts numeric strings from form-data, e.g. "2024" */
   @IsOptional()
   @Transform(({ value }) => (value !== undefined && value !== '' ? parseInt(value, 10) : undefined))
   @IsInt()
   @Min(1900)
   @Max(new Date().getFullYear() + 1)
   year?: number;
-
-  @IsString()
-  @IsIn(['IS', 'IT', 'CS'], { message: 'Department must be IS, IT, or CS.' })
-  department: string;
-
-  @IsString()
-  @IsIn(['thesis', 'capstone'], { message: 'Type must be thesis or capstone.' })
-  type: string;
 
   @IsOptional()
   @IsString()
@@ -64,7 +50,6 @@ export class UploadDocumentDto {
   @IsString()
   adviser?: string;
 
-  /** Accepts a JSON-serialised string array: '["keyword1","keyword2"]' */
   @IsOptional()
   @Transform(({ value }) => {
     if (typeof value === 'string') {

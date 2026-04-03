@@ -1,37 +1,26 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { DatabaseService } from '../../database/database.service';
-import { UploadMaterialDto } from './dto/upload-material.dto';
+import { UploadDocumentDto } from './dto/upload-material.dto';
 
 @Injectable()
 export class StudentService {
   constructor(private databaseService: DatabaseService) {}
 
   /**
-   * uploadMaterial stores the file in Supabase Storage then inserts a record
-   * into the materials table. The status defaults to 'pending' in the database.
-   * The author is automatically set to the submitting student's name.
+   * uploadDocument stores the PDF in Supabase Storage under the `documents`
+   * bucket, then inserts a record into the `documents` table.
+   * Status defaults to 'pending' and is set by the database.
    */
-  async uploadMaterial(
+  async uploadDocument(
     userId: string,
     file: Express.Multer.File,
-    dto: UploadMaterialDto,
+    dto: UploadDocumentDto,
   ) {
-    // Fetch the student's name to use as the author
-    const { data: profile, error: profileError } = await this.databaseService.client
-      .from('profiles')
-      .select('name')
-      .eq('id', userId)
-      .single();
-
-    if (profileError || !profile) {
-      throw new InternalServerErrorException('Failed to fetch student profile.');
-    }
-
-    // Store under {userId}/{timestamp}_{originalname} to avoid collisions
+    // Store under documents/{userId}/{timestamp}_{originalname}
     const storagePath = `${userId}/${Date.now()}_${file.originalname}`;
 
     const { error: storageError } = await this.databaseService.client.storage
-      .from('materials')
+      .from('documents')
       .upload(storagePath, file.buffer, { contentType: file.mimetype });
 
     if (storageError) {
@@ -40,27 +29,31 @@ export class StudentService {
       );
     }
 
-    const { data: material, error: dbError } = await this.databaseService.client
-      .from('materials')
+    const { data: document, error: dbError } = await this.databaseService.client
+      .from('documents')
       .insert({
-        author: profile.name,
-        publish_date: dto.publish_date ?? null,
-        version: dto.version ?? null,
-        file_path: storagePath,
-        file_name: file.originalname,
-        submitted_by: userId,
+        title: dto.title,
+        authors: dto.authors,
+        abstract: dto.abstract ?? null,
+        year: dto.year ?? null,
+        department: dto.department,
+        type: dto.type,
+        track_specialization: dto.track_specialization ?? null,
+        adviser: dto.adviser ?? null,
+        keywords: dto.keywords ?? null,
+        pdf_file_path: storagePath,
+        uploaded_by: userId,
+        status: 'pending',
       })
       .select()
       .single();
 
     if (dbError) {
       // Roll back the storage upload so we don't leave orphaned files
-      await this.databaseService.client.storage
-        .from('materials')
-        .remove([storagePath]);
-      throw new InternalServerErrorException('Failed to save material record.');
+      await this.databaseService.client.storage.from('documents').remove([storagePath]);
+      throw new InternalServerErrorException('Failed to save document record.');
     }
 
-    return material;
+    return document;
   }
 }

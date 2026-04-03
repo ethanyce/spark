@@ -8,8 +8,8 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   /**
-   * POST /auth/login
-   * Public route to authenticate a user. Returns session token + role.
+   * POST /api/auth/login
+   * Public. Authenticates a user and returns a session token, role, and department.
    */
   @Post('login')
   async login(@Body() loginDto: LoginDto) {
@@ -17,8 +17,8 @@ export class AuthController {
   }
 
   /**
-   * POST /auth/logout
-   * Protected route. Calls Supabase signOut.
+   * POST /api/auth/logout
+   * Protected. Invalidates the current Supabase session.
    */
   @UseGuards(SupabaseGuard)
   @Post('logout')
@@ -27,13 +27,13 @@ export class AuthController {
   }
 
   /**
-   * GET /auth/profile
-   * Protected route. Returns the logged-in user's profile from profiles table.
-   * The SupabaseGuard automatically attaches `req.user` (which includes the profile data).
+   * GET /api/auth/me
+   * Protected. Returns the currently authenticated user's profile
+   * as populated by SupabaseGuard from the `users` table.
    */
   @UseGuards(SupabaseGuard)
-  @Get('profile')
-  getProfile(@Request() req: any) {
+  @Get('me')
+  getMe(@Request() req: any) {
     return req.user;
   }
 }

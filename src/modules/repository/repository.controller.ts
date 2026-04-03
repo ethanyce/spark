@@ -6,11 +6,11 @@ export class RepositoryController {
   constructor(private readonly repositoryService: RepositoryService) {}
 
   /**
-   * GET /repository/materials?name=...
-   * Public. Returns approved materials whose name contains the search query.
+   * GET /api/repository/documents?name=...
+   * Public. Returns approved documents whose title contains the search query.
    */
-  @Get('materials')
-  searchMaterials(@Query('name') name: string) {
-    return this.repositoryService.searchMaterials(name);
+  @Get('documents')
+  searchDocuments(@Query('name') name: string) {
+    return this.repositoryService.searchDocuments(name);
   }
 }

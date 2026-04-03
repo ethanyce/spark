@@ -11,12 +11,11 @@ export class SuperadminController {
   constructor(private readonly superadminService: SuperadminService) {}
 
   /**
-   * POST /superadmin/admins
-   * Superadmin-only. Creates an admin account and sends them an invite email
-   * so they can set their password. The account is inactive until they do.
+   * POST /api/superadmin/admins
+   * super_admin only. Creates an admin account and sends them an invite email.
    */
   @Post('admins')
-  @Roles('superadmin')
+  @Roles('super_admin')
   createAdmin(@Body() createAdminDto: CreateAdminDto) {
     return this.superadminService.createAdmin(createAdminDto);
   }

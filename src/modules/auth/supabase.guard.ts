@@ -1,9 +1,16 @@
-import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { DatabaseService } from '../../database/database.service';
 
 /**
  * SupabaseGuard protects routes by validating the Supabase JWT.
- * It verifies the token securely with Supabase and fetches the user's profile.
+ * On success it attaches a `req.user` object with fields drawn
+ * from the `users` table: id, email, role, department, first_name,
+ * last_name, and is_active.
  */
 @Injectable()
 export class SupabaseGuard implements CanActivate {
@@ -14,31 +21,33 @@ export class SupabaseGuard implements CanActivate {
     const authHeader = request.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      throw new UnauthorizedException('Missing or invalid token');
+      throw new UnauthorizedException('Missing or invalid Authorization header');
     }
 
-    // Extract the JWT token
     const token = authHeader.split(' ')[1];
 
-    // Ask Supabase to verify the token and return the underlying Auth user
-    const { data: { user }, error } = await this.databaseService.client.auth.getUser(token);
+    // Verify the JWT with Supabase Auth
+    const {
+      data: { user },
+      error,
+    } = await this.databaseService.client.auth.getUser(token);
 
     if (error || !user) {
       throw new UnauthorizedException('Invalid or expired authentication token');
     }
 
-    // Fetch the attached custom profile data (role, account_status) from the 'profiles' table
-    const { data: profile, error: profileError } = await this.databaseService.client
-      .from('profiles')
-      .select('role, account_status')
+    // Fetch the user's profile from the `users` table
+    const { data: userRecord, error: userError } = await this.databaseService.client
+      .from('users')
+      .select('role, is_active, department, first_name, last_name')
       .eq('id', user.id)
       .single();
 
-    if (profileError || !profile) {
-      throw new UnauthorizedException('Profile not found for this user.');
+    if (userError || !userRecord) {
+      throw new UnauthorizedException('User record not found.');
     }
 
-    if (profile.account_status !== 'active') {
+    if (!userRecord.is_active) {
       throw new UnauthorizedException('Account is inactive.');
     }
 
@@ -46,10 +55,13 @@ export class SupabaseGuard implements CanActivate {
     request.user = {
       id: user.id,
       email: user.email,
-      role: profile.role,
-      account_status: profile.account_status,
+      role: userRecord.role,
+      department: userRecord.department,
+      first_name: userRecord.first_name,
+      last_name: userRecord.last_name,
+      is_active: userRecord.is_active,
     };
 
-    return true; // The user is allowed to access the route
+    return true;
   }
 }

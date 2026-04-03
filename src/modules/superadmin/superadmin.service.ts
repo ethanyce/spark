@@ -1,4 +1,8 @@
-import { Injectable, ConflictException, InternalServerErrorException } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { DatabaseService } from '../../database/database.service';
 import { CreateAdminDto } from './dto/create-admin.dto';
 
@@ -11,16 +15,15 @@ export class SuperadminService {
    *
    * Flow:
    *  1. Sends a Supabase invite email so the admin can set their own password.
-   *  2. Creates their profile row with role='admin' and account_status='inactive'.
-   *  3. The same on_email_confirmed trigger flips account_status to 'active' once they
-   *     accept the invite and confirm their email.
+   *  2. Inserts a row into `users` with role='admin' and is_active=false.
+   *  3. A Supabase database trigger flips is_active=true once they confirm email.
    */
-  async createAdmin(createAdminDto: CreateAdminDto) {
-    const { email } = createAdminDto;
+  async createAdmin(dto: CreateAdminDto) {
+    const { email, first_name, last_name, department } = dto;
 
-    // Guard against duplicate profiles
+    // Guard against duplicate users
     const { data: existing } = await this.databaseService.client
-      .from('profiles')
+      .from('users')
       .select('id')
       .eq('email', email)
       .maybeSingle();
@@ -39,27 +42,29 @@ export class SuperadminService {
       );
     }
 
-    // Create the profile row; account_status='inactive' until they complete the invite
-    const { data: profile, error: profileError } = await this.databaseService.client
-      .from('profiles')
+    const { data: user, error: userError } = await this.databaseService.client
+      .from('users')
       .insert({
         id: inviteData.user.id,
         email,
+        first_name,
+        last_name,
         role: 'admin',
-        account_status: 'inactive',
+        department,
+        is_active: false,
       })
-      .select('id, email, role, account_status')
+      .select('id, email, first_name, last_name, role, department, is_active, created_at')
       .single();
 
-    if (profileError) {
+    if (userError) {
       // Roll back the auth user so we don't leave an orphaned auth record
       await this.databaseService.client.auth.admin.deleteUser(inviteData.user.id);
-      throw new InternalServerErrorException('Failed to create admin profile.');
+      throw new InternalServerErrorException('Failed to create admin record.');
     }
 
     return {
       message: 'Admin account created. An invitation email has been sent.',
-      admin: profile,
+      admin: user,
     };
   }
 }
